@@ -298,7 +298,11 @@ class ForensicPlateGUIWithROI:
         draw = ImageDraw.Draw(display_copy)
         
         if self.roi_start and self.roi_end:
-            draw.rectangle([self.roi_start, self.roi_end], outline="yellow", width=2)
+            x1 = min(self.roi_start[0], self.roi_end[0])
+            y1 = min(self.roi_start[1], self.roi_end[1])
+            x2 = max(self.roi_start[0], self.roi_end[0])
+            y2 = max(self.roi_start[1], self.roi_end[1])
+            draw.rectangle([x1, y1, x2, y2], outline="yellow", width=2)
         
         display_resized = display_copy.copy()
         canvas_width = self.canvas.winfo_width()
