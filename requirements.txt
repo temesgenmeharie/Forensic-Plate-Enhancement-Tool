@@ -3,5 +3,4 @@ numpy==1.24.3
 scipy==1.11.2
 Pillow==10.0.0
 PySide6==6.6.1
-FFmpeg-python==0.2.1
 typing-extensions==4.8.0
