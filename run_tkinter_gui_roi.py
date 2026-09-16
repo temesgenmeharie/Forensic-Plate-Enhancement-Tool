@@ -197,40 +197,62 @@ class ForensicPlateGUIWithROI:
         if self.current_image is None:
             return
         
-        # Convert BGR to RGB
-        rgb = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2RGB)
+        try:
+            # Convert BGR to RGB
+            rgb = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2RGB)
+            
+            # Create PIL image
+            self.display_image_pil = Image.fromarray(rgb)
+            
+            # Get canvas dimensions
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            if canvas_width < 2 or canvas_height < 2:
+                canvas_width = 600
+                canvas_height = 400
+            
+            # Resize for display
+            self.display_image_pil_resized = self.display_image_pil.copy()
+            self.display_image_pil_resized.thumbnail(
+                (canvas_width - 10, canvas_height - 10),
+                Image.Resampling.LANCZOS
+            )
+            
+            # Store scale factors for coordinate conversion
+            self.scale_x = self.display_image_pil.width / self.display_image_pil_resized.width if self.display_image_pil_resized.width > 0 else 1
+            self.scale_y = self.display_image_pil.height / self.display_image_pil_resized.height if self.display_image_pil_resized.height > 0 else 1
+            
+            # Draw ROI if selected
+            display_with_roi = self.display_image_pil.copy()
+            if self.selected_roi:
+                draw = ImageDraw.Draw(display_with_roi)
+                x1, y1, x2, y2 = self.selected_roi
+                draw.rectangle(
+                    [(x1, y1), (x2, y2)],
+                    outline="red",
+                    width=3
+                )
+            
+            # Resize for canvas
+            display_with_roi_resized = display_with_roi.copy()
+            display_with_roi_resized.thumbnail(
+                (canvas_width - 10, canvas_height - 10),
+                Image.Resampling.LANCZOS
+            )
+            
+            photo = ImageTk.PhotoImage(display_with_roi_resized)
+            
+            self.canvas.delete("all")
+            self.canvas.create_image(
+                canvas_width // 2,
+                canvas_height // 2,
+                image=photo
+            )
+            self.canvas.image = photo
         
-        # Create PIL image
-        self.display_image_pil = Image.fromarray(rgb)
-        
-        # Draw ROI if selected
-        if self.selected_roi:
-            draw = ImageDraw.Draw(self.display_image_pil)
-            x1, y1, x2, y2 = self.selected_roi
-            draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
-        
-        # Resize for canvas
-        canvas_width = self.canvas.winfo_width()
-        canvas_height = self.canvas.winfo_height()
-        
-        if canvas_width < 2 or canvas_height < 2:
-            canvas_width = 600
-            canvas_height = 400
-        
-        self.display_image_pil_resized = self.display_image_pil.copy()
-        self.display_image_pil_resized.thumbnail((canvas_width - 10, canvas_height - 10), Image.Resampling.LANCZOS)
-        
-        # Store scale factors for ROI coordinates
-        self.scale_x = self.display_image_pil.width / self.display_image_pil_resized.width
-        self.scale_y = self.display_image_pil.height / self.display_image_pil_resized.height
-        
-        photo = ImageTk.PhotoImage(self.display_image_pil_resized)
-        
-        self.canvas.delete("all")
-        self.canvas_image = self.canvas.create_image(
-            canvas_width // 2, canvas_height // 2, image=photo
-        )
-        self.canvas.image = photo
+        except Exception as e:
+            print(f"Error displaying image: {e}")
     
     def start_roi_selection(self):
         """Start ROI selection mode."""
@@ -241,81 +263,186 @@ class ForensicPlateGUIWithROI:
         self.roi_mode = True
         self.roi_start = None
         self.roi_end = None
-        self.update_status("🎯 Draw rectangle on image to select ROI")
+        self.canvas.config(cursor="crosshair")
+        self.update_status("🎯 Click and drag on image to select ROI area")
+        self.roi_status.set("Drawing ROI...")
     
     def on_canvas_click(self, event):
-        """Handle canvas click."""
-        if not self.roi_mode or self.current_image is None:
+        """Handle canvas click - start ROI."""
+        if not self.roi_mode:
             return
         
-        self.roi_start = (event.x, event.y)
+        if self.current_image is None:
+            return
+        
+        # Get canvas dimensions
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        if canvas_width < 2 or canvas_height < 2:
+            return
+        
+        # Calculate image position on canvas (centered)
+        img_display_width = self.display_image_pil_resized.width
+        img_display_height = self.display_image_pil_resized.height
+        
+        img_x = (canvas_width - img_display_width) // 2
+        img_y = (canvas_height - img_display_height) // 2
+        
+        # Check if click is within image
+        if not (img_x <= event.x <= img_x + img_display_width and
+                img_y <= event.y <= img_y + img_display_height):
+            messagebox.showwarning("Warning", "Click within the image area")
+            return
+        
+        # Convert to image coordinates
+        x_in_img = int((event.x - img_x) * self.scale_x)
+        y_in_img = int((event.y - img_y) * self.scale_y)
+        
+        self.roi_start = (x_in_img, y_in_img)
+        self.roi_end = self.roi_start
+        self.update_status(f"🎯 Dragging... Start: ({x_in_img}, {y_in_img})")
     
     def on_canvas_drag(self, event):
-        """Handle canvas drag."""
+        """Handle canvas drag - update ROI."""
         if not self.roi_mode or self.roi_start is None:
             return
         
-        self.roi_end = (event.x, event.y)
-        self.redraw_canvas_with_preview()
-    
-    def on_canvas_release(self, event):
-        """Handle canvas release."""
-        if not self.roi_mode or self.roi_start is None:
+        # Get canvas dimensions
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        if canvas_width < 2 or canvas_height < 2:
             return
         
-        self.roi_end = (event.x, event.y)
+        # Calculate image position on canvas (centered)
+        img_display_width = self.display_image_pil_resized.width
+        img_display_height = self.display_image_pil_resized.height
         
-        # Convert canvas coordinates to image coordinates
-        x1_canvas, y1_canvas = self.roi_start
-        x2_canvas, y2_canvas = self.roi_end
+        img_x = (canvas_width - img_display_width) // 2
+        img_y = (canvas_height - img_display_height) // 2
         
-        x1 = int(min(x1_canvas, x2_canvas) * self.scale_x)
-        y1 = int(min(y1_canvas, y2_canvas) * self.scale_y)
-        x2 = int(max(x1_canvas, x2_canvas) * self.scale_x)
-        y2 = int(max(y1_canvas, y2_canvas) * self.scale_y)
+        # Convert to image coordinates
+        x_in_img = int((event.x - img_x) * self.scale_x)
+        y_in_img = int((event.y - img_y) * self.scale_y)
         
         # Clamp to image bounds
         h, w = self.current_image.shape[:2]
-        x1 = max(0, min(x1, w - 1))
-        y1 = max(0, min(y1, h - 1))
-        x2 = max(0, min(x2, w))
-        y2 = max(0, min(y2, h))
+        x_in_img = max(0, min(x_in_img, w - 1))
+        y_in_img = max(0, min(y_in_img, h - 1))
         
-        if x2 > x1 and y2 > y1:
+        self.roi_end = (x_in_img, y_in_img)
+        self.redraw_canvas_with_preview()
+    
+    def on_canvas_release(self, event):
+        """Handle canvas release - finalize ROI."""
+        if not self.roi_mode or self.roi_start is None:
+            return
+        
+        # Get canvas dimensions
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        if canvas_width < 2 or canvas_height < 2:
+            self.roi_mode = False
+            return
+        
+        # Calculate image position on canvas (centered)
+        img_display_width = self.display_image_pil_resized.width
+        img_display_height = self.display_image_pil_resized.height
+        
+        img_x = (canvas_width - img_display_width) // 2
+        img_y = (canvas_height - img_display_height) // 2
+        
+        # Convert to image coordinates
+        x_in_img = int((event.x - img_x) * self.scale_x)
+        y_in_img = int((event.y - img_y) * self.scale_y)
+        
+        # Clamp to image bounds
+        h, w = self.current_image.shape[:2]
+        x_in_img = max(0, min(x_in_img, w - 1))
+        y_in_img = max(0, min(y_in_img, h - 1))
+        
+        self.roi_end = (x_in_img, y_in_img)
+        
+        # Get ROI coordinates (normalized)
+        x1 = min(self.roi_start[0], self.roi_end[0])
+        y1 = min(self.roi_start[1], self.roi_end[1])
+        x2 = max(self.roi_start[0], self.roi_end[0])
+        y2 = max(self.roi_start[1], self.roi_end[1])
+        
+        # Ensure minimum size
+        if (x2 - x1) > 10 and (y2 - y1) > 10:
             self.selected_roi = (x1, y1, x2, y2)
-            self.roi_status.set(f"ROI: {x1},{y1} -> {x2},{y2} ({x2-x1}x{y2-y1})")
+            self.roi_status.set(f"✓ ROI: ({x1},{y1}) to ({x2},{y2}) = {x2-x1}x{y2-y1}px")
             self.update_status(f"✓ ROI selected: {x2-x1}x{y2-y1} pixels")
+            self.display_image()
+            self.update_metrics()
+        else:
+            messagebox.showwarning("Warning", "ROI too small. Minimum 10x10 pixels")
+            self.roi_status.set("ROI too small")
         
         self.roi_mode = False
+        self.canvas.config(cursor="arrow")
         self.display_image()
     
     def redraw_canvas_with_preview(self):
         """Redraw canvas with ROI preview."""
-        if self.display_image_pil is None:
+        if self.display_image_pil is None or self.roi_start is None:
             return
         
-        display_copy = self.display_image_pil.copy()
-        draw = ImageDraw.Draw(display_copy)
+        try:
+            # Create a copy for drawing
+            display_copy = self.display_image_pil.copy()
+            draw = ImageDraw.Draw(display_copy)
+            
+            # Draw ROI rectangle
+            if self.roi_start and self.roi_end:
+                x1 = min(self.roi_start[0], self.roi_end[0])
+                y1 = min(self.roi_start[1], self.roi_end[1])
+                x2 = max(self.roi_start[0], self.roi_end[0])
+                y2 = max(self.roi_start[1], self.roi_end[1])
+                
+                # Draw yellow rectangle
+                draw.rectangle(
+                    [(x1, y1), (x2, y2)],
+                    outline="yellow",
+                    width=3
+                )
+                
+                # Draw corner handles
+                handle_size = 10
+                for corner_x, corner_y in [(x1, y1), (x2, y1), (x1, y2), (x2, y2)]:
+                    draw.rectangle(
+                        [(corner_x - handle_size, corner_y - handle_size),
+                         (corner_x + handle_size, corner_y + handle_size)],
+                        outline="red",
+                        width=2
+                    )
+            
+            # Resize for canvas
+            display_resized = display_copy.copy()
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            if canvas_width > 1 and canvas_height > 1:
+                display_resized.thumbnail(
+                    (canvas_width - 10, canvas_height - 10),
+                    Image.Resampling.LANCZOS
+                )
+            
+            photo = ImageTk.PhotoImage(display_resized)
+            
+            self.canvas.delete("all")
+            self.canvas.create_image(
+                canvas_width // 2,
+                canvas_height // 2,
+                image=photo
+            )
+            self.canvas.image = photo
         
-        if self.roi_start and self.roi_end:
-            x1 = min(self.roi_start[0], self.roi_end[0])
-            y1 = min(self.roi_start[1], self.roi_end[1])
-            x2 = max(self.roi_start[0], self.roi_end[0])
-            y2 = max(self.roi_start[1], self.roi_end[1])
-            draw.rectangle([x1, y1, x2, y2], outline="yellow", width=2)
-        
-        display_resized = display_copy.copy()
-        canvas_width = self.canvas.winfo_width()
-        canvas_height = self.canvas.winfo_height()
-        
-        if canvas_width > 1 and canvas_height > 1:
-            display_resized.thumbnail((canvas_width - 10, canvas_height - 10), Image.Resampling.LANCZOS)
-        
-        photo = ImageTk.PhotoImage(display_resized)
-        
-        self.canvas.delete("all")
-        self.canvas.create_image(canvas_width // 2, canvas_height // 2, image=photo)
-        self.canvas.image = photo
+        except Exception as e:
+            print(f"Error in redraw: {e}")
     
     def update_metrics(self):
         """Update metrics display."""
