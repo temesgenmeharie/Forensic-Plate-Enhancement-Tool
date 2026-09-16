@@ -238,103 +238,84 @@ class ProcessingPipeline:
         
         return manifest_file
     
-    def process_enhancement_pipeline(
+    def process_deblurring_pipeline(
         self,
         image: np.ndarray,
-        apply_clahe: bool = True,
-        apply_denoising: bool = True,
-        apply_sharpening: bool = True,
-        apply_thresholding: bool = True
+        enable_wiener: bool = True,
+        enable_richardson_lucy: bool = True,
+        enable_motion_blur: bool = True
     ) -> dict:
         """
-        Apply full enhancement pipeline to image.
+        Apply experimental deblurring methods.
+        
+        WARNING: These are EXPERIMENTAL methods. Results should NOT be treated
+        as recovered ground truth. Manual verification is required.
         
         Args:
             image: Input image
-            apply_clahe: Whether to apply CLAHE (default: True)
-            apply_denoising: Whether to apply denoising (default: True)
-            apply_sharpening: Whether to apply sharpening (default: True)
-            apply_thresholding: Whether to apply thresholding (default: True)
+            enable_wiener: Whether to apply Wiener filter (default: True)
+            enable_richardson_lucy: Whether to apply Richardson-Lucy (default: True)
+            enable_motion_blur: Whether to apply motion blur removal (default: True)
             
         Returns:
-            Dictionary with all processed images
+            Dictionary with deblurred images
         """
-        from app.processing.contrast import apply_clahe
-        from app.processing.denoise import apply_bilateral_filter, apply_non_local_means_denoise
-        from app.processing.sharpen import apply_unsharp_mask
-        from app.processing.threshold import apply_adaptive_gaussian_threshold, apply_adaptive_mean_threshold
+        from app.processing.deblur import (
+            apply_wiener_filter, apply_richardson_lucy_deconvolution,
+            apply_motion_blur_removal
+        )
         
-        # Convert to grayscale for processing
+        # Convert to grayscale
         if len(image.shape) == 3:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
             gray = image
         
-        current = gray.copy()
-        
-        # Apply CLAHE
-        if apply_clahe:
-            enhanced_clahe = apply_clahe(current, clip_limit=2.0, tile_grid_size=(8, 8))
+        # Apply Wiener deblurring
+        if enable_wiener:
+            wiener = apply_wiener_filter(gray, noise_variance=10.0, kernel_size=5)
             self.save_image(
-                enhanced_clahe,
-                "06_clahe.png",
-                operation_name="clahe",
-                operation_params={"clip_limit": 2.0, "tile_grid_size": [8, 8]}
-            )
-            current = enhanced_clahe
-        
-        # Apply bilateral denoising
-        if apply_denoising:
-            denoised_bilateral = apply_bilateral_filter(current, diameter=9, sigma_color=75, sigma_space=75)
-            self.save_image(
-                denoised_bilateral,
-                "07_bilateral.png",
-                operation_name="bilateral_denoise",
-                operation_params={"diameter": 9, "sigma_color": 75, "sigma_space": 75}
+                wiener,
+                "12_deblur_wiener.png",
+                operation_name="wiener_deblurring",
+                operation_params={"noise_variance": 10.0, "kernel_size": 5, "experimental": True}
             )
         
-        # Apply NLM denoising
-        if apply_denoising:
-            denoised_nlm = apply_non_local_means_denoise(current, h=10, template_window_size=7, search_window_size=21)
-            self.save_image(
-                denoised_nlm,
-                "08_nlm.png",
-                operation_name="nlm_denoise",
-                operation_params={"h": 10, "template_window_size": 7, "search_window_size": 21}
+        # Apply Richardson-Lucy deconvolution
+        if enable_richardson_lucy:
+            rl = apply_richardson_lucy_deconvolution(
+                gray,
+                kernel_size=5,
+                iterations=10,
+                regularization=0.1
             )
-            current = denoised_nlm
-        
-        # Apply sharpening
-        if apply_sharpening:
-            sharpened = apply_unsharp_mask(current, sigma=1.0, amount=1.5, threshold=0)
             self.save_image(
-                sharpened,
-                "09_unsharp.png",
-                operation_name="unsharp_mask",
-                operation_params={"sigma": 1.0, "amount": 1.5, "threshold": 0}
+                rl,
+                "13_deblur_rl.png",
+                operation_name="richardson_lucy_deconvolution",
+                operation_params={"kernel_size": 5, "iterations": 10, "regularization": 0.1, "experimental": True}
             )
         
-        # Apply adaptive thresholding
-        if apply_thresholding:
-            threshold_gaussian = apply_adaptive_gaussian_threshold(current, block_size=11, constant=2.0)
-            self.save_image(
-                threshold_gaussian,
-                "10_adaptive_gaussian.png",
-                operation_name="adaptive_gaussian_threshold",
-                operation_params={"block_size": 11, "constant": 2.0}
+        # Apply motion blur removal
+        if enable_motion_blur:
+            motion = apply_motion_blur_removal(
+                gray,
+                kernel_size=11,
+                angle=0.0,
+                iterations=5
             )
-            
-            threshold_mean = apply_adaptive_mean_threshold(current, block_size=11, constant=2.0)
             self.save_image(
-                threshold_mean,
-                "11_adaptive_mean.png",
-                operation_name="adaptive_mean_threshold",
-                operation_params={"block_size": 11, "constant": 2.0}
+                motion,
+                "14_deblur_motion.png",
+                operation_name="motion_blur_removal",
+                operation_params={"kernel_size": 11, "angle": 0.0, "iterations": 5, "experimental": True}
             )
         
-        logger.info("Enhancement pipeline completed")
+        logger.info("Deblurring pipeline completed (EXPERIMENTAL)")
         
         return self.results
+    
+    def get_output_summary(self) -> dict:
         """
         Get summary of pipeline output.
         
