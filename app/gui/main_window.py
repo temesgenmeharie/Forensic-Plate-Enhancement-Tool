@@ -157,6 +157,38 @@ class MainWindow(QMainWindow):
         self.threshold_combo.addItems(["None", "Adaptive Gaussian", "Otsu", "Binary"])
         options_layout.addWidget(self.threshold_combo, 5, 1)
         
+        # Advanced Deblurring for License Plates
+        options_layout.addWidget(QLabel("Advanced Deblurring:"), 6, 0)
+        self.advanced_deblur_combo = QComboBox()
+        self.advanced_deblur_combo.addItems([
+            "None",
+            "Blind Deconvolution",
+            "Richardson-Lucy (Motion)",
+            "Richardson-Lucy (Gaussian)",
+            "Total Variation",
+            "Frequency Domain",
+            "Super-Resolution 2x",
+            "Super-Resolution 4x",
+            "Multi-Scale"
+        ])
+        options_layout.addWidget(self.advanced_deblur_combo, 6, 1)
+        
+        # Advanced Deblurring
+        options_layout.addWidget(QLabel("Advanced Deblurring:"), 6, 0)
+        self.advanced_deblur_combo = QComboBox()
+        self.advanced_deblur_combo.addItems([
+            "None",
+            "Blind Deconvolution",
+            "Richardson-Lucy (Motion)",
+            "Richardson-Lucy (Gaussian)",
+            "Total Variation",
+            "Frequency Domain",
+            "Super-Resolution 2x",
+            "Super-Resolution 4x",
+            "Multi-Scale"
+        ])
+        options_layout.addWidget(self.advanced_deblur_combo, 6, 1)
+        
         layout.addWidget(options_group)
         
         # Processing button
@@ -391,18 +423,67 @@ class MainWindow(QMainWindow):
             threshold_method = self.threshold_combo.currentText()
             if threshold_method != "None":
                 from app.processing.threshold import (
-                    adaptive_gaussian_threshold, otsu_threshold, binary_threshold
+                    apply_adaptive_gaussian_threshold, apply_otsu_threshold, apply_binary_threshold
                 )
                 
                 if threshold_method == "Adaptive Gaussian":
-                    current_image = adaptive_gaussian_threshold(current_image)
+                    current_image = apply_adaptive_gaussian_threshold(current_image)
                     log_text += "✓ Adaptive Gaussian Thresholding\n"
                 elif threshold_method == "Otsu":
-                    current_image = otsu_threshold(current_image)
+                    current_image, _ = apply_otsu_threshold(current_image)
                     log_text += "✓ Otsu Thresholding\n"
                 elif threshold_method == "Binary":
-                    current_image = binary_threshold(current_image)
+                    current_image = apply_binary_threshold(current_image)
                     log_text += "✓ Binary Thresholding\n"
+            
+            # Advanced Deblurring for License Plates
+            advanced_deblur = self.advanced_deblur_combo.currentText()
+            if advanced_deblur != "None":
+                from app.processing.advanced_deblur import (
+                    apply_blind_deconvolution,
+                    apply_lucy_richardson_advanced,
+                    apply_total_variation_deblur,
+                    apply_frequency_domain_deblur,
+                    apply_super_resolution_upscale,
+                    apply_multi_scale_deblur
+                )
+                
+                if advanced_deblur == "Blind Deconvolution":
+                    current_image = apply_blind_deconvolution(current_image, iterations=30)
+                    log_text += "⚠️ Blind Deconvolution (EXPERIMENTAL)\n"
+                elif advanced_deblur == "Richardson-Lucy (Motion)":
+                    current_image = apply_lucy_richardson_advanced(
+                        current_image, iterations=15, psf_type="motion"
+                    )
+                    log_text += "⚠️ Richardson-Lucy Motion Deblur (EXPERIMENTAL)\n"
+                elif advanced_deblur == "Richardson-Lucy (Gaussian)":
+                    current_image = apply_lucy_richardson_advanced(
+                        current_image, iterations=15, psf_type="gaussian"
+                    )
+                    log_text += "⚠️ Richardson-Lucy Gaussian Deblur (EXPERIMENTAL)\n"
+                elif advanced_deblur == "Total Variation":
+                    current_image = apply_total_variation_deblur(current_image, strength=0.1, iterations=100)
+                    log_text += "⚠️ Total Variation Deblur (EXPERIMENTAL)\n"
+                elif advanced_deblur == "Frequency Domain":
+                    current_image = apply_frequency_domain_deblur(
+                        current_image, blur_type="motion", strength=1.0
+                    )
+                    log_text += "⚠️ Frequency Domain Deblur (EXPERIMENTAL)\n"
+                elif advanced_deblur == "Super-Resolution 2x":
+                    current_image = apply_super_resolution_upscale(
+                        current_image, scale_factor=2, iterations=10
+                    )
+                    log_text += "⚠️ Super-Resolution 2x (EXPERIMENTAL)\n"
+                elif advanced_deblur == "Super-Resolution 4x":
+                    current_image = apply_super_resolution_upscale(
+                        current_image, scale_factor=4, iterations=10
+                    )
+                    log_text += "⚠️ Super-Resolution 4x (EXPERIMENTAL)\n"
+                elif advanced_deblur == "Multi-Scale":
+                    current_image = apply_multi_scale_deblur(
+                        current_image, scales=[0.5, 1.0]
+                    )
+                    log_text += "⚠️ Multi-Scale Deblur (EXPERIMENTAL)\n"
             
             log_text += "\nExecuting pipeline...\n"
             self.processing_output.setText(log_text)
