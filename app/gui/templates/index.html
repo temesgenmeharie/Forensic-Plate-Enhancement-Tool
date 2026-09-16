@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forensic Plate Enhancer - Advanced Deblurring</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .panel {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .panel h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f8f9ff;
+        }
+        
+        .upload-area.dragover {
+            background: #e8eaff;
+            border-color: #764ba2;
+        }
+        
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .image-display {
+            width: 100%;
+            max-height: 400px;
+            margin: 20px 0;
+            border-radius: 5px;
+            object-fit: contain;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+        }
+        
+        .metrics {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-label {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .metric-value {
+            color: #667eea;
+            font-weight: 700;
+        }
+        
+        .method-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            margin: 10px 0;
+        }
+        
+        .comparison-panel {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+            grid-column: 1 / -1;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 20px 0;
+        }
+        
+        .comparison-item h3 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status-message {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        .status-message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+        
+        .improvement-badge {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin-left: 10px;
+            font-weight: 600;
+        }
+        
+        .improvement-badge.negative {
+            background: #dc3545;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔬 Forensic Plate Enhancer</h1>
+            <p class="subtitle">Advanced License Plate Deblurring & Recovery</p>
+            <div class="warning">
+                ⚠️ <strong>EXPERIMENTAL:</strong> All deblurring results require manual verification by forensic examiner. Original evidence preserved. Audit trail maintained.
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <!-- Upload Panel -->
+            <div class="panel">
+                <h2>📥 Upload Evidence</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📷</div>
+                    <p>Drag & drop license plate image here<br>or click to browse</p>
+                </div>
+                <input type="file" id="fileInput" accept="image/*">
+                <div id="uploadStatus" class="status-message"></div>
+            </div>
+            
+            <!-- Deblurring Panel -->
+            <div class="panel">
+                <h2>⚡ Deblurring Methods</h2>
+                <p style="color: #666; margin-bottom: 15px;">Select deblurring technique:</p>
+                <select id="methodSelect" class="method-select">
+                    <option value="">-- Select Method --</option>
+                    <option value="blind_deconv">Blind Deconvolution</option>
+                    <option value="rl_motion">Richardson-Lucy (Motion)</option>
+                    <option value="rl_gaussian">Richardson-Lucy (Gaussian)</option>
+                    <option value="total_variation">Total Variation</option>
+                    <option value="freq_domain">Frequency Domain</option>
+                    <option value="super_res_2x">Super-Resolution 2x</option>
+                    <option value="super_res_4x">Super-Resolution 4x</option>
+                    <option value="multi_scale">Multi-Scale</option>
+                    <option value="morphological">Morphological Enhancement</option>
+                </select>
+                <button class="btn-primary" id="deblurBtn" onclick="applyDeblur()" disabled>Apply Deblurring</button>
+                <button class="btn-secondary" id="undoBtn" onclick="undoOperation()" disabled>↶ Undo</button>
+                <button class="btn-secondary" id="resetBtn" onclick="resetImage()" disabled>⟲ Reset</button>
+                <div id="deblurStatus" class="status-message"></div>
+            </div>
+        </div>
+        
+        <!-- Image Comparison Panel -->
+        <div class="comparison-panel" id="comparisonPanel" style="display: none;">
+            <h2>🔄 Before & After Comparison</h2>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <h3>Original</h3>
+                    <img id="originalImage" class="image-display">
+                    <div class="metrics" id="metricsOriginal"></div>
+                </div>
+                <div class="comparison-item">
+                    <h3>Processed</h3>
+                    <img id="processedImage" class="image-display">
+                    <div class="metrics" id="metricsProcessed"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Processing Result -->
+        <div class="panel" id="resultPanel" style="display: none;">
+            <h2>✨ Processing Result</h2>
+            <img id="resultImage" class="image-display">
+            <div id="resultMetrics" class="metrics"></div>
+            <button class="btn-success" onclick="downloadReport()">📋 Download Report</button>
+            <button class="btn-primary" onclick="viewComparison()">🔍 View Full Comparison</button>
+        </div>
+        
+        <!-- Loading Indicator -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 10px; color: white;">Processing... Please wait</p>
+        </div>
+    </div>
+    
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const methodSelect = document.getElementById('methodSelect');
+        const deblurBtn = document.getElementById('deblurBtn');
+        const loading = document.getElementById('loading');
+        
+        // File upload handling
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            fileInput.files = e.dataTransfer.files;
+            uploadFile();
+        });
+        
+        fileInput.addEventListener('change', uploadFile);
+        
+        async function uploadFile() {
+            const file = fileInput.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            showLoading(true);
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('uploadStatus', `✓ Loaded: ${data.filename} (${data.shape[1]}x${data.shape[0]})`, 'success');
+                    document.getElementById('resultImage').src = data.preview;
+                    document.getElementById('resultMetrics').innerHTML = formatMetrics(data.metrics);
+                    document.getElementById('resultPanel').style.display = 'block';
+                    
+                    methodSelect.disabled = false;
+                    deblurBtn.disabled = false;
+                    document.getElementById('undoBtn').disabled = true;
+                    document.getElementById('resetBtn').disabled = true;
+                    
+                    if (data.recommended_method) {
+                        methodSelect.value = data.recommended_method;
+                        showStatus('uploadStatus', `📊 Recommended: ${data.recommended_method}`, 'info');
+                    }
+                } else {
+                    showStatus('uploadStatus', `Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('uploadStatus', `Error: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function applyDeblur() {
+            const method = methodSelect.value;
+            if (!method) {
+                showStatus('deblurStatus', 'Please select a deblurring method', 'error');
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                const response = await fetch('/api/deblur', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({method})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('resultImage').src = data.result;
+                    document.getElementById('resultMetrics').innerHTML = formatMetrics(data.metrics_after);
+                    
+                    const improvement = data.improvement;
+                    const badge = `<span class="improvement-badge ${improvement < 0 ? 'negative' : ''}">${improvement > 0 ? '+' : ''}${improvement}%</span>`;
+                    showStatus('deblurStatus', `✓ Processing complete${badge}`, 'success');
+                    
+                    document.getElementById('undoBtn').disabled = false;
+                    document.getElementById('resetBtn').disabled = false;
+                    methodSelect.disabled = false;
+                } else {
+                    showStatus('deblurStatus', `Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('deblurStatus', `Error: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function undoOperation() {
+            showLoading(true);
+            try {
+                const response = await fetch('/api/undo', {method: 'POST'});
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('resultImage').src = data.result;
+                    document.getElementById('resultMetrics').innerHTML = formatMetrics(data.metrics);
+                    showStatus('deblurStatus', '↶ Undo complete', 'success');
+                    
+                    if (data.operations_count === 0) {
+                        document.getElementById('undoBtn').disabled = true;
+                        document.getElementById('resetBtn').disabled = true;
+                    }
+                }
+            } catch (error) {
+                showStatus('deblurStatus', `Error: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function resetImage() {
+            showLoading(true);
+            try {
+                const response = await fetch('/api/reset', {method: 'POST'});
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('resultImage').src = data.result;
+                    document.getElementById('resultMetrics').innerHTML = formatMetrics(data.metrics);
+                    showStatus('deblurStatus', '⟲ Reset to original', 'success');
+                    document.getElementById('undoBtn').disabled = true;
+                    document.getElementById('resetBtn').disabled = true;
+                }
+            } catch (error) {
+                showStatus('deblurStatus', `Error: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function viewComparison() {
+            try {
+                const response = await fetch('/api/compare');
+                const data = await response.json();
+                
+                document.getElementById('originalImage').src = data.original;
+                document.getElementById('processedImage').src = data.current;
+                document.getElementById('metricsOriginal').innerHTML = formatMetrics(data.metrics_before);
+                document.getElementById('metricsProcessed').innerHTML = formatMetrics(data.metrics_after);
+                document.getElementById('comparisonPanel').style.display = 'block';
+                document.querySelector('html').scrollTop = document.getElementById('comparisonPanel').offsetTop - 100;
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+        
+        async function downloadReport() {
+            try {
+                const response = await fetch('/api/report');
+                const data = await response.json();
+                
+                const jsonStr = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonStr], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `forensic_report_${new Date().getTime()}.json`;
+                a.click();
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+        
+        function formatMetrics(metrics) {
+            if (!metrics) return '';
+            return `
+                <div class="metric-row">
+                    <span class="metric-label">Visibility Score:</span>
+                    <span class="metric-value">${metrics.visibility_score}/100</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Sharpness:</span>
+                    <span class="metric-value">${metrics.sharpness}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Contrast:</span>
+                    <span class="metric-value">${metrics.contrast}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Edge Density:</span>
+                    <span class="metric-value">${metrics.edge_density}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Readable:</span>
+                    <span class="metric-value">${metrics.is_readable ? '✓ Yes' : '✗ No'}</span>
+                </div>
+            `;
+        }
+        
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status-message ${type}`;
+        }
+        
+        function showLoading(show) {
+            loading.style.display = show ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>
